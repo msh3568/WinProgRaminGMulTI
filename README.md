@@ -1,2 +1,2 @@
 # WinProgRaminGMulTI
-웹프 배운거
+window leaning
