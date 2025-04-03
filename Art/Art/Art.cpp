@@ -10,7 +10,7 @@ typedef struct {
     int width, height;
     char title[32];
     char color[16];
-    char art[3][30]; 
+    char art[3][30];
 } Window;
 
 void draw_window(Window* win) {
@@ -54,13 +54,13 @@ int main() {
     draw_desktop();
 
     Window base = {
-        0, 0, 28, 7,
+        0, 0, 20, 7,
         "흠..냐륑~",
         "\033[36m",
         {
-            "  /\\_/\\   /\\_/\\  ",
-            " ( o.o ) ( o.o ) ",
-            "  > ^ <   > ^ <  "
+            "  /\\_/\\   /\\_/\\ ",
+            " ( o.o ) ( o.o )",
+            "  > ^ <   > ^ < "
         }
     };
 
