@@ -1,104 +1,217 @@
-
-#define _CRT_SECURE_NO_WARNINGS
+ï»¿#define _CRT_SECURE_NO_WARNINGS
+#include <windows.h>
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
 
+// ì½˜ì†” ë ˆì´ì•„ì›ƒ ìƒìˆ˜
+#define SCREEN_W     80
+#define SCREEN_H     25
 #define TOP_MARGIN    1
-#define BOTTOM_MARGIN 1   // ÀÛ¾÷Ç¥½ÃÁÙ ³ôÀÌ
+#define BOTTOM_MARGIN 1
 #define LEFT_MARGIN   2
 #define RIGHT_MARGIN  2
 
-// ANSI ÇïÆÛ
-static void move_cursor(int row, int col) { printf("\x1b[%d;%dH", row, col); }
+// ìœˆë„ìš° ê°œìˆ˜
+#define MAX_WINDOWS 3
+
+// ìœˆë„ìš° êµ¬ì¡°ì²´
+typedef struct {
+    int x, y;         // ì¢Œìƒë‹¨ ìœ„ì¹˜ (1-based)
+    int w, h;         // í¬ê¸° (í…Œë‘ë¦¬ í¬í•¨)
+    int color;        // ANSI ë°°ê²½ìƒ‰ (0â€“7)
+    int open;         // ì—´ë¦¼ ì—¬ë¶€
+    char title[32];   // ì œëª©
+} Window;
+
+// ì„¸ ê°œì˜ ìœˆë„ìš° ì •ì˜
+Window wins[MAX_WINDOWS] = {
+    {  5,  3, 20,  8, 3, 1, "Window1" },
+    { 30,  3, 20,  8, 2, 1, "Window2" },
+    { 55,  3, 20,  8, 5, 1, "Window3" }
+};
+
+// ANSI í—¬í¼
+static void move_cursor(int r, int c) { printf("\x1b[%d;%dH", r, c); }
 static void set_bg(int c) { printf("\x1b[%dm", 40 + c); }
 static void set_fg(int c) { printf("\x1b[%dm", 30 + c); }
-static void reset_color(void) { printf("\x1b[0m"); }
+static void reset_color() { printf("\x1b[0m"); }
 
-// ¹è°æ£«ÀÛ¾÷Ç¥½ÃÁÙ (¿©¹é Á¦¿Ü ¿µ¿ª¸¸)
-void DrawBG(int W, int H) {
-    printf("\x1b[2J");  // ÀüÃ¼ Å¬¸®¾î
-    // ÆÄ¶õ ¹è°æ
-    for (int r = TOP_MARGIN + 1; r <= H - BOTTOM_MARGIN; ++r) {
+// ë°”íƒ•í™”ë©´ + ì‘ì—…í‘œì‹œì¤„
+void DrawBG() {
+    printf("\x1b[2J");
+    for (int r = TOP_MARGIN + 1; r <= SCREEN_H - BOTTOM_MARGIN; ++r) {
         move_cursor(r, LEFT_MARGIN + 1);
         set_bg(4);
-        for (int c = 0; c < W - LEFT_MARGIN - RIGHT_MARGIN; ++c) putchar(' ');
+        for (int c = 0; c < SCREEN_W - LEFT_MARGIN - RIGHT_MARGIN; ++c) putchar(' ');
         reset_color();
     }
-    // È¸»ö ÀÛ¾÷Ç¥½ÃÁÙ
-    move_cursor(H, LEFT_MARGIN + 1);
+    move_cursor(SCREEN_H, LEFT_MARGIN + 1);
     set_bg(7);
-    for (int c = 0; c < W - LEFT_MARGIN - RIGHT_MARGIN; ++c) putchar(' ');
+    for (int c = 0; c < SCREEN_W - LEFT_MARGIN - RIGHT_MARGIN; ++c) putchar(' ');
     reset_color();
 }
 
-// ÄÜ¼Ö À©µµ¿ì ±×¸®±â
-// startX/startY: ÁÂ»ó´Ü, width/height: Å×µÎ¸® Æ÷ÇÔ ÀüÃ¼ Å©±â
-// title: Ã¢ Á¦¸ñ, color: ANSI ¹è°æ»ö(0~7)
-void drawConsoleWindow(int startX, int startY, int width, int height,
-    const char* title, int color)
-{
-    int innerW = width - 2;    // ³»ºÎ Æø
-    int tlen = (int)strlen(title);
+// í•˜ë‚˜ì˜ ìœˆë„ìš° ê·¸ë¦¬ê¸°
+void drawWindow(const Window* w) {
+    int innerW = w->w - 2;
+    int tlen = (int)strlen(w->title);
+    if (tlen > innerW - 4) tlen = innerW - 4;
 
-    // 1) »ó´Ü Å×µÎ¸®
-    move_cursor(startY, startX);
-    set_bg(color);
-    putchar('|');
+    // ìƒë‹¨ í…Œë‘ë¦¬
+    move_cursor(w->y, w->x);
+    set_bg(w->color); putchar('|');
     for (int i = 0; i < innerW; ++i) putchar('-');
-    putchar('|');
-    reset_color();
+    putchar('|'); reset_color();
 
-    // 2) Á¦¸ñÁÙ (ÀüÃ¼ ³ë¶õ»ö, ¿À¸¥ÂÊ¿¡ X)
-    move_cursor(startY + 1, startX);
-    set_bg(color);
-    putchar('|');
-    // ³»ºÎ ÀüÃ¼ ³ë¶õÀ¸·Î Ã¤¿ì±â
+    // ì œëª©ì¤„ ë°°ê²½
+    move_cursor(w->y + 1, w->x);
+    set_bg(w->color); putchar('|');
     for (int i = 0; i < innerW; ++i) putchar(' ');
-    putchar('|');
+    putchar('|'); reset_color();
+
+    // ì œëª© í…ìŠ¤íŠ¸
+    move_cursor(w->y + 1, w->x + 2);
+    set_fg(7); set_bg(w->color);
+    fwrite(w->title, 1, tlen, stdout);
     reset_color();
 
-    // Á¦¸ñ µ¤¾î¾²±â (µé¿©¾²±â 2Ä­)
-    move_cursor(startY + 1, startX + 2);
-    set_bg(color); set_fg(7);
-    printf("%s", title);
-    reset_color();
+    // X ë²„íŠ¼
+    move_cursor(w->y, w->x + w->w - 3);
+    set_bg(1); set_fg(7); putchar('X'); reset_color();
 
-    // X ¹öÆ° (¿À¸¥ÂÊ¿¡¼­ ÇÑ Ä­ Àü)
-    move_cursor(startY + 1, startX + width - 2);
-    set_bg(1); set_fg(7);
-    putchar('X');
-    reset_color();
-
-    // 3) ³»ºÎ
-    for (int r = 2; r < height - 1; ++r) {
-        move_cursor(startY + r, startX);
-        set_bg(color); putchar('|');
+    // ë‚´ë¶€
+    for (int dy = 2; dy < w->h - 1; ++dy) {
+        move_cursor(w->y + dy, w->x);
+        set_bg(w->color); putchar('|');
         for (int i = 0; i < innerW; ++i) putchar(' ');
-        putchar('|');
-        reset_color();
+        putchar('|'); reset_color();
     }
 
-    // 4) ÇÏ´Ü Å×µÎ¸®
-    move_cursor(startY + height - 1, startX);
-    set_bg(color);
-    putchar('|');
+    // í•˜ë‹¨ í…Œë‘ë¦¬
+    move_cursor(w->y + w->h - 1, w->x);
+    set_bg(w->color); putchar('|');
     for (int i = 0; i < innerW; ++i) putchar('-');
-    putchar('|');
-    reset_color();
+    putchar('|'); reset_color();
+}
+
+// ì´ì „ ì»¤ì„œ ìë¦¬ ë³µì›
+void restore_cell(COORD p) {
+    int row = p.Y + 1, col = p.X + 1;
+    // Z-order: ë’¤ì—ì„œë¶€í„° ê²€ì‚¬
+    for (int i = MAX_WINDOWS - 1; i >= 0; --i) {
+        Window* w = &wins[i];
+        if (!w->open) continue;
+        if (row >= w->y && row < w->y + w->h &&
+            col >= w->x && col < w->x + w->w)
+        {
+            int ry = row - w->y, rx = col - w->x;
+            // í…Œë‘ë¦¬/ë‚´ë¶€ ëª¨ë‘ ë°°ê²½ìƒ‰ìœ¼ë¡œ ë³µì›
+            set_bg(w->color);
+            move_cursor(row, col);
+            if (ry == 0 || ry == w->h - 1) putchar('-');
+            else if (rx == 0 || rx == w->w - 1) putchar('|');
+            else putchar(' ');
+            reset_color();
+            return;
+        }
+    }
+    // ì‘ì—…í‘œì‹œì¤„
+    if (row == SCREEN_H && col > LEFT_MARGIN && col <= SCREEN_W - RIGHT_MARGIN) {
+        set_bg(7);
+        move_cursor(row, col);
+        putchar(' ');
+        reset_color();
+        return;
+    }
+    // ë‚˜ë¨¸ì§€ ë°ìŠ¤í¬íƒ‘
+    if (row > TOP_MARGIN && row < SCREEN_H) {
+        set_bg(4);
+        move_cursor(row, col);
+        putchar(' ');
+        reset_color();
+    }
 }
 
 int main(void) {
-    const int W = 80, H = 25;
-    DrawBG(W, H);
-    drawConsoleWindow(15, 5, 52, 15, "³ªÀÇ ¸ÚÁø À©µµ¿ì ÇÁ·Î±×·¡¹Ö", 3);
-
-    // ÀÌ¹ø¿¡ Ãß°¡µÈ ºÎºĞ: Á¾·á ¾È³» ¸Ş½ÃÁö
-    move_cursor(H, 1);
-    printf("\n\nÇÁ·Î±×·¥ÀÌ Á¤»óÀûÀ¸·Î Á¾·áµÇ¾ú½À´Ï´Ù. ¾Æ·¡ ¸Ş½ÃÁö¸¦ È®ÀÎÇÏ¼¼¿ä.\n");
-
-    // Ä¿¼­ ¼û±â±â
+    // VT & ë§ˆìš°ìŠ¤ ì„¤ì •
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE), hIn = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+    GetConsoleMode(hOut, &mode);
+    SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    GetConsoleMode(hIn, &mode);
+    mode &= ~(ENABLE_QUICK_EDIT_MODE | ENABLE_INSERT_MODE);
+    mode |= ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT;
+    SetConsoleMode(hIn, mode);
     printf("\x1b[?25l");
+
+    // ì´ˆê¸° ê·¸ë¦¬ê¸°
+    DrawBG();
+    for (int i = 0; i < MAX_WINDOWS; ++i)
+        if (wins[i].open) drawWindow(&wins[i]);
+
+    // ì´ë²¤íŠ¸ ë£¨í”„
+    COORD prev = { -1,-1 };
+    INPUT_RECORD ir; DWORD cnt;
+    while (1) {
+        ReadConsoleInput(hIn, &ir, 1, &cnt);
+        if (ir.EventType != MOUSE_EVENT) continue;
+        MOUSE_EVENT_RECORD m = ir.Event.MouseEvent;
+        int row = m.dwMousePosition.Y + 1, col = m.dwMousePosition.X + 1;
+
+        // í´ë¦­: ë¨¼ì € Close
+        if (m.dwEventFlags == 0 && (m.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED)) {
+            // X ë²„íŠ¼ í´ë¦­
+            for (int i = 0; i < MAX_WINDOWS; ++i) {
+                Window* w = &wins[i];
+                if (!w->open) continue;
+                if (row == w->y && col == w->x + w->w - 3) {
+                    w->open = 0;
+                    // ë®ì–´ì“°ê¸°
+                    for (int ry = 0; ry < w->h; ++ry) {
+                        move_cursor(w->y + ry, w->x);
+                        for (int cx = 0; cx < w->w; ++cx) {
+                            set_bg((ry == SCREEN_H) ? 7 : 4);
+                            putchar(' ');
+                        }
+                        reset_color();
+                    }
+                }
+            }
+            // ë‚´ë¶€ í´ë¦­ â†’ ìµœìƒìœ„ë¡œ ì´ë™
+            for (int i = 0; i < MAX_WINDOWS; ++i) {
+                Window w = wins[i];
+                if (!w.open) continue;
+                if (row >= w.y && row < w.y + w.h &&
+                    col >= w.x && col < w.x + w.w)
+                {
+                    // ë‹¨, X í´ë¦­ì€ ì´ë¯¸ ì²˜ë¦¬ë¨
+                    if (!(row == w.y && col == w.x + w.w - 3)) {
+                        // reorder
+                        for (int j = i; j < MAX_WINDOWS - 1; ++j) wins[j] = wins[j + 1];
+                        wins[MAX_WINDOWS - 1] = w;
+                        // ì „ì²´ ì¬ê·¸ë¦¬ê¸°
+                        DrawBG();
+                        for (int k = 0; k < MAX_WINDOWS; ++k)
+                            if (wins[k].open) drawWindow(&wins[k]);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // ì´ë™: ì»¤ì„œ ê°±ì‹ 
+        if (m.dwEventFlags & MOUSE_MOVED) {
+            COORD cur = m.dwMousePosition;
+            if (prev.X != -1) restore_cell(prev);
+            if (cur.X >= LEFT_MARGIN && cur.X < SCREEN_W - RIGHT_MARGIN &&
+                cur.Y >= TOP_MARGIN && cur.Y < SCREEN_H - BOTTOM_MARGIN)
+            {
+                move_cursor(cur.Y + 1, cur.X + 1);
+                set_fg(7); putchar('<'); reset_color();
+                prev = cur;
+            }
+        }
+    }
+
     return 0;
 }
-
